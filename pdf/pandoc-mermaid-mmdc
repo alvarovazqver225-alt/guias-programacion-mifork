@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Custom Pandoc filter for Mermaid diagrams using mmdc
+Custom Pandoc filter for Mermaid diagrams using mmdc - VERSION CORREGIDA WSL
 """
 import os
 import sys
@@ -17,36 +17,30 @@ def mermaid_filter(key, value, format, meta):
             # Create mermaid-images directory if it doesn't exist
             mermaid_dir = Path('mermaid-images')
             mermaid_dir.mkdir(exist_ok=True)
-            
+
             # Create temporary files
             with tempfile.NamedTemporaryFile(mode='w', suffix='.mmd', delete=False) as f:
                 f.write(code)
                 mmd_file = f.name
-            
+
             # Generate PNG file in mermaid-images directory
             png_filename = f"mermaid_{hash(code) % 1000000}.png"
             png_file = mermaid_dir / png_filename
-            
+
             try:
-                # Run mmdc with quiet flag to suppress debug messages
-                result = subprocess.run([
-                    'mmdc', 
-                    '-i', mmd_file, 
+                # COMANDO CORREGIDO: AÑADIMOS -p puppeteer-config.json
+                cmd = [
+                    'mmdc',
+                    '-i', mmd_file,
                     '-o', str(png_file),
-                    '--quiet'
-                ], capture_output=True, text=True)
+                    '-p', 'puppeteer-config.json' 
+                ]
                 
-                if result.returncode != 0:
-                    # If --quiet doesn't work, try without it but redirect stderr
-                    result = subprocess.run([
-                        'mmdc', 
-                        '-i', mmd_file, 
-                        '-o', str(png_file)
-                    ], capture_output=True, text=True)
-                
+                result = subprocess.run(cmd, capture_output=True, text=True)
+
                 # Clean up temp files
                 os.unlink(mmd_file)
-                
+
                 if result.returncode == 0 and png_file.exists():
                     # Return an image element
                     return {
@@ -61,26 +55,28 @@ def mermaid_filter(key, value, format, meta):
                         }]
                     }
                 else:
-                    # Return error message
+                    # Return error message visible in PDF
                     return {
                         't': 'Para',
                         'c': [{
-                            't': 'Str',
-                            'c': f'Error generating Mermaid diagram: {result.stderr}'
+                            't': 'CodeBlock',
+                            'c': [
+                                ['', ['bash'], []],
+                                f"ERROR MERMAID: {result.stderr}"
+                            ]
                         }]
                     }
             except Exception as e:
-                # Clean up temp files
                 if os.path.exists(mmd_file):
                     os.unlink(mmd_file)
                 return {
                     't': 'Para',
                     'c': [{
                         't': 'Str',
-                        'c': f'Error: {str(e)}'
+                        'c': f'Error Exception: {str(e)}'
                     }]
                 }
-    
+
     return None
 
 def main():
