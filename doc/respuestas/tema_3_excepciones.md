@@ -458,35 +458,267 @@ public class DemostracionFinally {
 
 ## 11. En Java, qué son las excepciones **"controladas"** y las **"no controladas"**? ¿Qué papel juega `RuntimeException`? Pon un ejemplo de excepciones típicas controladas y no controladas que incluso nosotros mismos podríamos usar. Haz dos listas con 3 o 4 ejemplos de situación donde se suele preferir una excepción controlada y donde se suele preferir una excepción no controlada.
 
-### Respuesta
+En Java, el sistema de excepciones se divide categóricamente en dos grandes grupos: las excepciones controladas (checked exceptions) y las no controladas (unchecked exceptions). Las excepciones controladas representan condiciones anómalas que escapan al control directo del programa, como un fallo en la red o la ausencia de un archivo, pero de las cuales una aplicación robusta debería tener un plan para recuperarse. La particularidad más destacada de Java frente a C/C++ es que el compilador obliga estrictamente a tratar estas excepciones controladas en tiempo de compilación; si un método lanza una de ellas, el programador está forzado a envolver la llamada en un bloque try-catch o a declarar explícitamente que el método propaga el error. Por el contrario, las excepciones no controladas representan fallos en la lógica de programación (defectos o bugs), y el compilador no exige su captura explícita, asumiendo que el código fuente debería corregirse para evitar que ocurran.
+
+El papel de la clase RuntimeException es fundamental en esta división, ya que actúa como la frontera arquitectónica para definir qué excepciones son no controladas. Toda clase de excepción que herede directa o indirectamente de RuntimeException es ignorada por las comprobaciones de captura obligatoria del compilador. Cualquier otra clase que herede de la clase base Exception (pero no de RuntimeException) se clasifica automáticamente como una excepción controlada. Esta jerarquía permite al desarrollador decidir cómo se comportará una excepción personalizada simplemente eligiendo de qué clase padre heredar.
+
+A nivel de diseño de software, la elección entre un tipo u otro depende de si el código llamador puede razonablemente hacer algo útil para recuperarse del error o si, por el contrario, el error es consecuencia de haber utilizado mal una función (incumplimiento de precondiciones). A continuación se exponen situaciones habituales para ambas categorías:
+
+Situaciones donde se suele preferir una excepción controlada (ej. IOException, SQLException):
+
+Intento de apertura de un archivo de configuración que ha sido borrado, modificado o bloqueado por el sistema operativo.
+
+Conexión a una base de datos externa que se encuentra temporalmente caída o inaccesible.
+
+Petición de lectura de datos a través de una red donde la conexión se interrumpe súbitamente por un timeout.
+
+Recepción de una cadena de texto desde la interfaz de usuario que debe ser convertida a formato de fecha, pero cuyo formato es incorrecto.
+
+Situaciones donde se suele preferir una excepción no controlada (ej. IllegalArgumentException, NullPointerException):
+
+Paso de un argumento numérico negativo a una función matemática que solo admite valores positivos.
+
+Intento de acceso a la posición 10 de un array o vector que ha sido instanciado con solo 5 elementos.
+
+Uso de una referencia a un objeto nulo (el equivalente a desreferenciar un puntero nulo en C) para intentar invocar uno de sus métodos.
+
+Llamada a un método de un objeto que requiere una inicialización previa que el programador olvidó realizar.
+
+
+// Ejemplo de diseño de excepciones personalizadas
+
+// 1. Controlada: El compilador obligará a quien use este error a poner un try-catch
+class ArchivoCorruptoException extends Exception { 
+    public ArchivoCorruptoException(String mensaje) { super(mensaje); }
+}
+
+// 2. No controlada: El compilador NO obligará a poner un try-catch
+class ParametroInvalidoException extends RuntimeException { 
+    public ParametroInvalidoException(String mensaje) { super(mensaje); }
+}
 
 
 ## 12. ¿Qué es y para qué se usa `throws`? ¿Por qué es alternativa a capturar una excepción controlada?
 
-### Respuesta
+En Java, la palabra reservada throws se emplea en la firma de un método para declarar formalmente que su ejecución es susceptible de generar una o varias excepciones, típicamente de tipo controlado (checked). Se puede entender como un contrato explícito e integrado en el propio lenguaje entre el método y el código que lo invoca. A diferencia de C, donde los códigos de error devueltos por una función quedan relegados a comentarios o documentación externa, throws hace que la posibilidad de fallo sea visible y verificable por el propio compilador, impidiendo que el error pase desapercibido.
+
+El propósito principal de utilizar throws es la delegación de responsabilidades. Cuando se diseña un método, es posible que se produzca una excepción controlada (como una lectura fallida de un disco), pero que dicho método no disponga del contexto necesario ni de los permisos para tomar una decisión sobre cómo actuar (por ejemplo, si se debe reintentar, mostrar una alerta al usuario o abortar el programa). Mediante la cláusula throws, se notifica que el método se desentiende de la gestión de ese error, permitiendo que la excepción se propague de forma natural hacia los niveles superiores de la pila de llamadas, donde presumiblemente existe un conocimiento global del sistema para tratarla adecuadamente.
+
+Por lo tanto, throws funciona como una alternativa obligatoria a la captura cuando se lidia con excepciones controladas debido a la regla del compilador de Java conocida como "capturar o especificar". Si se invoca una función que puede lanzar un error controlado, el programador solo tiene dos caminos para que el código compile: o bien "captura" el error envolviendo la llamada en un bloque try-catch, asumiendo el control en ese mismo instante; o bien "especifica" el error añadiendo throws en la firma de su propio método, renunciando a la captura y traspasando la obligación de colocar el try-catch al siguiente método invocador en la jerarquía.
+
+import java.io.IOException;
+
+public class LectorArchivos {
+
+    // ALTERNATIVA 1: "Especificar" mediante throws (Delegar)
+    // Se avisa de que el método puede fallar y no se hace responsable de capturarlo.
+    public void leerConfiguracion(String ruta) throws IOException {
+        System.out.println("Intentando leer el archivo: " + ruta);
+        // Si esta operación falla, se lanza IOException y el método aborta.
+        throw new IOException("Archivo de configuracion no encontrado");
+    }
+
+    // ALTERNATIVA 2: "Capturar" mediante try-catch (Asumir responsabilidad)
+    // Este método llama al anterior y, al no tener un 'throws', está obligado a usar try-catch.
+    public void inicializarSistema() {
+        try {
+            leerConfiguracion("config.ini");
+        } catch (IOException e) {
+            // El error delegado se gestiona finalmente en este punto
+            System.err.println("Fallo critico al arrancar: No se pudo cargar la configuracion.");
+        }
+    }
+}
 
 
 ## 13. Pon un ejemplo en Java de firma de método que incluya `throws`, de una función que abre un fichero pero que declara que no le interesa menejar la excepción de si el fichero no existe, sino que se propague hacia arriba. Eso sí, acuérdate del `finally`.
 
-### Respuesta
+En operaciones de entrada/salida, como la apertura y lectura de un fichero, las bibliotecas estándar de Java exigen el tratamiento de excepciones controladas, tales como FileNotFoundException o IOException. Si el propósito de una función es exclusivamente extraer información y no cuenta con el contexto necesario para decidir qué hacer si el archivo no existe (por ejemplo, desconocer si es mejor pedirle otra ruta al usuario o abortar la ejecución completa), lo más adecuado a nivel de diseño es delegar este problema. Para ello, se incluye la cláusula throws en la firma del método, indicando explícitamente al compilador y al método llamador que la excepción no será neutralizada localmente, sino que se propagará hacia los niveles superiores.
+
+No obstante, el hecho de delegar la captura del error no exime a la función de su responsabilidad sobre el manejo de los recursos subyacentes. Si el fichero se abrió con éxito pero ocurre un error durante su lectura posterior, es obligatorio liberar el descriptor del archivo en el sistema operativo. En este escenario, se emplea una estructura try-finally desprovista de bloque catch. De este modo, el flujo de ejecución garantiza de forma estricta que, antes de que la excepción no capturada abandone definitivamente el método impulsada por el throws, el bloque finally tomará el control momentáneamente para cerrar el recurso de forma segura.
+
+import java.io.FileInputStream;
+import java.io.IOException;
+
+public class LectorDatos {
+
+    // La firma declara 'throws IOException', delegando explícitamente el manejo del error
+    public void extraerDatos(String rutaFichero) throws IOException {
+        FileInputStream flujoEntrada = null;
+        
+        try {
+            // Si el archivo no existe, FileInputStream lanza FileNotFoundException (hija de IOException).
+            // Al no existir un bloque catch, el error interrumpe el try y salta al finally.
+            flujoEntrada = new FileInputStream(rutaFichero);
+            
+            System.out.println("Fichero abierto. Iniciando lectura...");
+            int dato = flujoEntrada.read(); // Esto también puede lanzar IOException
+            
+        } finally {
+            // Este bloque se ejecuta incondicionalmente, atrapando el flujo justo antes
+            // de que la excepción abandone el método para propagarse hacia arriba.
+            if (flujoEntrada != null) {
+                // Se garantiza la liberación del recurso físico
+                flujoEntrada.close();
+                System.out.println("Recurso cerrado correctamente en el bloque finally.");
+            }
+        }
+    }
+}
 
 
 ## 14. ¿Podemos poner en `throws` excepciones no controladas, como `RuntimeException`? ¿Debería el método llamador entonces poner `try-catch` en ese caso? ¿Qué sentido tendría?
 
-### Respuesta
+En Java, el compilador permite técnicamente incluir excepciones no controladas (es decir, RuntimeException o cualquiera de sus clases derivadas, como IllegalArgumentException o NullPointerException) en la cláusula throws de la firma de un método. Sin embargo, a diferencia de lo que ocurre con las excepciones controladas, esta declaración no altera en absoluto las reglas de compilación. El entorno de ejecución procesará la excepción exactamente de la misma manera: si se lanza, abortará la ejecución actual y se propagará libremente por la pila de llamadas de forma automática.
 
+Dado que el compilador no impone la regla estricta de "capturar o especificar" para las excepciones no controladas, el método llamador no está obligado a envolver la invocación en un bloque try-catch, y, desde el punto de vista del buen diseño, no debería hacerlo. Las excepciones no controladas están concebidas para señalar defectos en la lógica de programación o incumplimientos de contrato (como intentar acceder fuera de los límites de un vector, un error similar a provocar un segmentation fault en C). Por consiguiente, la solución adecuada no consiste en capturar el error en tiempo de ejecución para intentar una recuperación en falso, sino en modificar el código fuente introduciendo sentencias condicionales (if) que validen los datos previamente, garantizando que el estado anómalo jamás llegue a producirse.
+
+El único sentido práctico de declarar una excepción no controlada en la cláusula throws es estrictamente documental. Se emplea para comunicar explícitamente a los desarrolladores que utilicen esa función cuáles son las precondiciones críticas que deben respetar al invocarla. Al incluir el error en la firma del método, herramientas como Javadoc extraen esta advertencia automáticamente y la integran en la documentación oficial de la API, alertando al programador llamador de que es su responsabilidad validar las variables antes de realizar la llamada, sin forzarle a enturbiar su código con bloques de gestión de errores innecesarios.
+
+public class Validador {
+    
+    // Se incluye la excepción no controlada en throws EXCLUSIVAMENTE como documentación.
+    // Advierte al programador sobre la precondición: el divisor jamás debe ser cero.
+    public static int dividir(int a, int b) throws IllegalArgumentException {
+        if (b == 0) {
+            throw new IllegalArgumentException("Incumplimiento de contrato: el divisor es 0");
+        }
+        return a / b;
+    }
+
+    public static void main(String[] args) {
+        int x = 10;
+        int y = 0;
+
+        // El compilador NO exige un try-catch al llamar a 'dividir'.
+        // En su lugar, el error (bug) se evita preventivamente mediante lógica estándar de C/Java.
+        if (y != 0) {
+            int resultado = dividir(x, y);
+            System.out.println("Resultado: " + resultado);
+        } else {
+            System.err.println("Operacion prevenida: Se ha evitado un fallo de programacion.");
+        }
+    }
+}
 
 ## 15. ¿Cuándo se recomienda usar excepciones controladas, como `IOException`, y cuándo no controladas como `IllegalArgumentException`? ¿Existen en todos los lenguajes ambas opciones? En los que sólo existe una opción, ¿cuál es la más habitual?
 
-### Respuesta
+Se recomienda utilizar excepciones controladas (como IOException o SQLException) para representar condiciones anómalas que son potencialmente recuperables y que ocurren fuera del control directo de la aplicación, como la interacción con el sistema de archivos, la red o una base de datos. Al igual que en C se asume la responsabilidad de comprobar si la función fopen devuelve un puntero nulo (dado que el archivo físico podría haber sido borrado por otro programa), en Java el compilador obliga a gestionar estos escenarios imprevisibles de forma robusta. El objetivo es forzar al diseño del programa a contemplar siempre un "Plan B" frente a fallos del entorno que el código no puede prevenir.
+
+Por otro lado, las excepciones no controladas (como IllegalArgumentException o NullPointerException) se emplean para señalar errores en la lógica del programador, defectos en el código (bugs) o el incumplimiento evidente de las reglas de uso de una función. Si en C/C++ se provoca un segmentation fault por acceder a memoria no reservada o se pasa un índice negativo a un vector, la solución jamás consiste en intentar interceptar el cuelgue en tiempo de ejecución, sino en corregir las validaciones en el código fuente. En Java se aplica la misma filosofía: no se debe usar un bloque try-catch para manejar un argumento inválido, sino que se debe programar una validación previa (con sentencias condicionales clásicas) para evitar que el estado defectuoso desencadene el error.
+
+Respecto a su existencia en otros lenguajes, el sistema dual de Java es más una excepción que la regla. El mecanismo de excepciones controladas impuestas estrictamente por el compilador es una característica muy particular de Java. En la inmensa mayoría de lenguajes modernos y clásicos que soportan orientación a objetos (como C++, C#, Python, Ruby o Kotlin), la única opción existente son las excepciones no controladas. La tendencia más habitual y aceptada en la industria actual es el paradigma no controlado, argumentando que las excepciones controladas suelen generar un acoplamiento rígido entre capas, reducen la legibilidad y a menudo provocan el antipatrón de crear bloques catch vacíos únicamente para silenciar las quejas del compilador.
+
+import java.io.IOException;
+
+public class GestorOperaciones {
+
+    // 1. Caso de uso: Excepción NO controlada (Error de programación / bug)
+    // El llamador debería haber comprobado el dato antes de invocar el método.
+    // No requiere throws obligatorio ni try-catch en el llamador.
+    public void procesarIdentificador(int id) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("El ID debe ser estrictamente positivo.");
+        }
+        System.out.println("ID procesado correctamente.");
+    }
+
+    // 2. Caso de uso: Excepción controlada (Error de entorno imprevisible)
+    // El fallo es ajeno al programa (ej. disco lleno, permisos revocados).
+    // Obliga al compilador a verificar que el método llamador lo gestione o propague.
+    public void volcarDatosADisco(String datos) throws IOException {
+        boolean falloDeHardwareSimulado = true;
+        
+        if (falloDeHardwareSimulado) {
+            throw new IOException("Fallo externo: No se puede escribir en el disco.");
+        }
+    }
+}
 
 
 ## 16. ¿Tiene sentido lanzar excepciones dentro del `catch`? ¿Se puede relanzar la misma excepción capturada? ¿Cuándo tendría sentido hacer esto último? Pon ejemplos de ambos casos.
 
-### Respuesta
+En Java, es completamente válido y habitual utilizar la sentencia throw dentro de un bloque catch. Esta situación se presenta típicamente de dos formas. La primera ocurre cuando, al intentar ejecutar una rutina de recuperación dentro del propio catch, se produce un nuevo fallo independiente. La segunda, más ligada al diseño arquitectónico, sucede cuando se captura una excepción de bajo nivel y se decide lanzar una nueva excepción de un tipo diferente, con el objetivo de presentar un error más comprensible para las capas superiores. Haciendo un símil con C, esto equivaldría a recibir un código de error de una librería matemática y, en lugar de pasarlo tal cual al menú principal, retornar un nuevo código de error propio que signifique "fallo en la física del juego".
+
+Por otro lado, es perfectamente posible relanzar exactamente la misma excepción que acaba de ser capturada, utilizando la instrucción throw seguida de la variable que la referencia (por ejemplo, throw e;). Esta técnica resulta indispensable en escenarios donde un método necesita interceptar el error temporalmente para realizar una acción local de limpieza o registro —como escribir el fallo en un archivo de bitácora (log) o deshacer operaciones parciales en una base de datos (rollback)—, pero no tiene la autoridad ni el contexto para dar el error por solucionado. Al relanzar la misma instancia, la excepción original retoma su propagación por la pila de llamadas, permitiendo que un método de mayor nivel tome la decisión final de cómo alertar al usuario o recuperar el sistema.
+
+import java.io.IOException;
+
+public class GestorOperaciones {
+
+    // Ejemplo 1: Relanzar la MISMA excepción capturada
+    public void procesarConRegistro() throws IOException {
+        try {
+            // Se simula una operación que falla en el sistema de archivos
+            throw new IOException("El archivo temporal esta bloqueado.");
+        } catch (IOException e) {
+            // Se intercepta temporalmente para realizar una acción de auditoría
+            System.err.println("LOG DEL SISTEMA: Se ha producido un fallo de I/O a las 10:00 AM.");
+            
+            // Al no poder solucionar el bloqueo del archivo, se relanza el mismo error
+            // para que el método llamador decida si reintentar más tarde o abortar.
+            throw e; 
+        }
+    }
+
+    // Ejemplo 2: Lanzar una NUEVA excepción desde el catch
+    public void validarDatosInternos() {
+        try {
+            // Se simula un error de programación de bajo nivel (acceso fuera de límites)
+            int[] vector = new int[3];
+            int valor = vector[5]; 
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // En lugar de dejar que el nivel superior lidie con índices de arrays,
+            // se lanza una nueva excepción más descriptiva para el dominio del programa.
+            System.err.println("Interceptado fallo de acceso a memoria.");
+            throw new IllegalArgumentException("Los datos proporcionados estan corruptos.");
+        }
+    }
+}
 
 
 ## 17. ¿En qué consiste que una excepción sea la **"causa"** de otra excepción? Pon un ejemplo en Java, donde capturemos una excepción de bajo nivel y la encapsulemos en otra personalizada de alto nivel. Cuando una excepción sale por pantalla y tiene una causa, ¿se ve?
 
-### Respuesta
+En la programación orientada a objetos en Java, el concepto de que una excepción sea la "causa" de otra se materializa mediante una técnica conocida como encadenamiento de excepciones (exception chaining). Esta situación ocurre cuando un subsistema captura un error de muy bajo nivel (por ejemplo, un fallo al leer un archivo binario o un error de red) y, en lugar de propagarlo tal cual, decide lanzar una nueva excepción de más alto nivel que tenga sentido lógico para el resto de la aplicación (como "Fallo al cargar el perfil de usuario"). Para no perder la valiosa información técnica del error original, fundamental para la depuración, el objeto de la excepción original se pasa como parámetro al constructor de la nueva excepción, quedando encapsulado internamente como su "causa raíz". Haciendo una analogía con C, sería como devolver un código de error general de alto nivel, pero anexando un puntero a una estructura struct que contenga el errno y los detalles del fallo a nivel de sistema operativo.
+
+Cuando una de estas excepciones encadenadas no se captura y finalmente se imprime por pantalla (típicamente mediante la invocación automática o manual del método printStackTrace()), el entorno de ejecución de Java se encarga de mostrar toda la información de forma jerárquica. Primero, se visualiza el mensaje y la traza de la pila de la excepción de alto nivel. A continuación, si el objeto contiene una causa encapsulada, el sistema imprime automáticamente la directiva "Caused by:" (Causado por:), seguida del mensaje y la traza de la excepción original de bajo nivel. Esto permite que el código llamador solo necesite entender los errores de su propio dominio, mientras que los desarrolladores conservan la traza completa de qué falló exactamente a nivel técnico.
+
+import java.io.FileInputStream;
+import java.io.IOException;
+
+// 1. Definición de una excepción personalizada de alto nivel
+class ErrorCargaPerfilException extends Exception {
+    // El constructor recibe el mensaje y el objeto Throwable que actúa como causa
+    public ErrorCargaPerfilException(String mensaje, Throwable causa) {
+        super(mensaje, causa); // Se delega la inicialización a la clase base
+    }
+}
+
+public class SistemaUsuarios {
+
+    // Método que intenta una operación de bajo nivel y traduce el error
+    public void cargarPerfil(String ruta) throws ErrorCargaPerfilException {
+        try {
+            // Se simula la apertura de un fichero que no existe
+            FileInputStream fis = new FileInputStream(ruta);
+            
+        } catch (IOException e) {
+            // Se captura el error técnico (bajo nivel)
+            // Se lanza el error de dominio (alto nivel), pasándole 'e' como CAUSA.
+            throw new ErrorCargaPerfilException("No se ha podido inicializar el usuario actual", e);
+        }
+    }
+
+    public static void main(String[] args) {
+        SistemaUsuarios sistema = new SistemaUsuarios();
+        
+        try {
+            sistema.cargarPerfil("C:/perfil_inexistente.dat");
+        } catch (ErrorCargaPerfilException e) {
+            // Al imprimir la traza, se verá claramente el "Caused by: java.io.FileNotFoundException..."
+            System.err.println("Se ha producido un error fatal en la aplicacion:");
+            e.printStackTrace();
+        }
+    }
+}
 
